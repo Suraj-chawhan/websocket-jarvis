@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live Audio Transcription</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        margin: 10px;
+      }
+      #transcription {
+        margin-top: 20px;
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Live Audio Transcription</h1>
+    <button id="start">🎤 Start Recording</button>
+    <button id="stop" disabled>⏹ Stop Recording</button>
+    <p id="transcription">Transcript will appear here...</p>
+
+    <script>
+      const socket = io("http://localhost:5000");
+      let mediaRecorder, silenceTimeout;
+      let audioChunks = [];
+
+      document.getElementById("start").addEventListener("click", async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+            socket.emit("audio-chunk", event.data);
+          }
+          resetSilenceTimeout();
+        };
+
+        mediaRecorder.onstop = () => {
+          socket.emit("audio-end");
+        };
+
+        mediaRecorder.start(500); // Capture chunks every 500ms
+        resetSilenceTimeout();
+
+        document.getElementById("start").disabled = true;
+        document.getElementById("stop").disabled = false;
+      });
+
+      document.getElementById("stop").addEventListener("click", stopRecording);
+
+      function stopRecording() {
+        if (mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+        document.getElementById("start").disabled = false;
+        document.getElementById("stop").disabled = true;
+      }
+
+      function resetSilenceTimeout() {
+        clearTimeout(silenceTimeout);
+        silenceTimeout = setTimeout(() => {
+          stopRecording();
+        }, 2000); // Stop if silence for 2 seconds
+      }
+
+      socket.on("transcription", (text) => {
+        document.getElementById("transcription").textContent = text;
+      });
+    </script>
+  </body>
+</html>

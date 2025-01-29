@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-Time Communication</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin: 0;
+        padding: 20px;
+      }
+      h1 {
+        color: #333;
+      }
+      #startButton {
+        padding: 10px 20px;
+        font-size: 16px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 20px;
+      }
+      #startButton:hover {
+        background-color: #0056b3;
+      }
+      #transcript,
+      #finalTranscript {
+        margin-top: 20px;
+        padding: 10px;
+        background-color: #f4f4f4;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        display: inline-block;
+        width: 80%;
+        text-align: left;
+        word-wrap: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Real-Time Communication</h1>
+    <button id="startButton">Start Listening</button>
+    <div id="transcript">You are saying:</div>
+    <div id="finalTranscript">Final Message:</div>
+
+    <script>
+      let recognition;
+      let socket;
+      let isListening = false;
+      let timeout;
+      const pauseThreshold = 1500; // Pause duration to detect end of speech
+
+      // Initialize the Socket.io client
+      socket = io("http://localhost:3000"); // Ensure the server is running on this URL
+
+      socket.on("connect", () => {
+        console.log("Connected to the server via WebSocket!");
+      });
+
+      socket.on("response", (response) => {
+        console.log("Server response:", response);
+
+        // Convert text to speech (TTS)
+        const speech = new SpeechSynthesisUtterance(response);
+        speech.lang = "en-US";
+        speech.rate = 1; // Adjust rate (speed)
+        speech.pitch = 1; // Adjust pitch
+
+        // Speak the server response
+        window.speechSynthesis.speak(speech);
+      });
+
+      socket.on("connect_error", (error) => {
+        console.error("WebSocket connection error:", error);
+      });
+
+      socket.on("disconnect", () => {
+        console.log("WebSocket connection closed.");
+      });
+
+      // Check for browser support and initialize Speech Recognition
+      if ("webkitSpeechRecognition" in window) {
+        recognition = new webkitSpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onstart = () => {
+          console.log("Speech recognition started...");
+        };
+
+        recognition.onresult = (event) => {
+          let interimTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+              const finalTranscript = event.results[i][0].transcript.trim();
+              socket.emit("message", finalTranscript); // Send final text to backend
+              document.getElementById("finalTranscript").textContent =
+                "Final Message: " + finalTranscript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+          document.getElementById("transcript").textContent =
+            "You are saying: " + interimTranscript;
+
+          // Reset timeout after each recognition result
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            if (interimTranscript.trim()) {
+              socket.emit("message", interimTranscript.trim());
+              document.getElementById("finalTranscript").textContent =
+                "Final Message: " + interimTranscript.trim();
+            }
+          }, pauseThreshold);
+        };
+
+        recognition.onerror = (event) => {
+          console.error("Speech recognition error:", event.error);
+        };
+
+        recognition.onend = () => {
+          console.log("Speech recognition stopped.");
+        };
+      } else {
+        alert("Your browser does not support Speech Recognition.");
+      }
+
+      // Start/Stop listening button logic
+      document.getElementById("startButton").addEventListener("click", () => {
+        if (!isListening) {
+          recognition.start();
+          isListening = true;
+          document.getElementById("startButton").textContent = "Stop Listening";
+        } else {
+          recognition.stop();
+          isListening = false;
+          document.getElementById("startButton").textContent =
+            "Start Listening";
+        }
+      });
+    </script>
+  </body>
+</html>
