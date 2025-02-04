@@ -1,18 +1,14 @@
+require("dotenv").config(); // Load environment variables
 const express = require("express");
-const { Groq } = require("groq-sdk");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const { Groq } = require("groq-sdk");
 
 const app = express();
 app.use(express.static("public"));
-
-// CORS Configuration
 app.use(cors({ origin: "*", methods: ["GET", "POST"], credentials: true }));
+app.use(express.json()); // Middleware for JSON body parsing
 
-app.get("/", (req, res) => {
-  res.json({ message: "hello suraj" });
-});
-// Start Server
 const server = app.listen(5000, () => {
   console.log("Server running on http://localhost:5000");
 });
@@ -27,8 +23,8 @@ const groq = new Groq({
   apiKey: "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", // Use environment variable
 });
 
-// Function to handle AI chat response (Streaming)
-async function generateChatResponse(prompt, socket) {
+// Function to handle AI chat response
+async function generateChatResponse(prompt) {
   try {
     const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: "user", content: `${prompt}` }],
@@ -36,20 +32,14 @@ async function generateChatResponse(prompt, socket) {
       temperature: 1,
       max_completion_tokens: 100,
       top_p: 1,
-      stream: true,
+      stream: false, // No streaming support in this version
       stop: null,
     });
 
-    let responseText = "";
-    for await (const chunk of chatCompletion) {
-      const textChunk = chunk.choices[0]?.delta?.content || "";
-      responseText += textChunk;
-    }
-
-    return responseText;
+    return chatCompletion.choices[0]?.message?.content || "No response.";
   } catch (error) {
     console.error("Groq API Error:", error.message);
-    socket.emit("ans", "Sorry, I couldn’t process your request.");
+    return "Sorry, I couldn’t process your request.";
   }
 }
 
@@ -59,10 +49,15 @@ io.on("connection", (socket) => {
 
   socket.on("message", async (data) => {
     const response = await generateChatResponse(data.message);
-    socket.emit("ans", response); // Emit the response once it's fully generated
+    socket.emit("ans", response);
   });
 
   socket.on("disconnect", () => {
     console.log("Client disconnected");
   });
+});
+
+// Root route
+app.get("/", (req, res) => {
+  res.json({ message: "hello suraj" });
 });
