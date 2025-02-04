@@ -9,6 +9,9 @@ app.use(express.static("public"));
 // CORS Configuration
 app.use(cors({ origin: "*", methods: ["GET", "POST"], credentials: true }));
 
+app.get("/", (req, res) => {
+  res.json({ message: "hello suraj" });
+});
 // Start Server
 const server = app.listen(5000, () => {
   console.log("Server running on http://localhost:5000");
