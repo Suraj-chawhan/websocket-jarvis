@@ -44,9 +44,6 @@ async function generateChatResponse(prompt, socket) {
     for await (const chunk of chatCompletion) {
       const textChunk = chunk.choices[0]?.delta?.content || "";
       responseText += textChunk;
-
-      // Send each chunk to the frontend
-      socket.emit("ans", textChunk);
     }
 
     return responseText;
@@ -61,7 +58,8 @@ io.on("connection", (socket) => {
   console.log("Client connected");
 
   socket.on("message", async (data) => {
-    await generateChatResponse(data.message, socket);
+    const response = await generateChatResponse(data.message);
+    socket.emit("ans", response); // Emit the response once it's fully generated
   });
 
   socket.on("disconnect", () => {
