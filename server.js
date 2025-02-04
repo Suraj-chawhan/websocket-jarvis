@@ -23,22 +23,31 @@ const groq = new Groq({
   apiKey: "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", // Use environment variable
 });
 
-// Function to handle AI chat response
 async function generateChatResponse(prompt) {
   try {
     const chatCompletion = await groq.chat.completions.create({
-      messages: [{ role: "user", content: `${prompt}` }],
+      messages: [
+        {
+          role: "user",
+          content: `${prompt} "Remember this you are an assitant Answer each question max 50 words if small answer is applicable than answer in less"`,
+        },
+      ],
       model: "llama-3.3-70b-versatile",
       temperature: 1,
       max_completion_tokens: 100,
       top_p: 1,
-      stream: false, // No streaming support in this version
+      stream: true,
       stop: null,
     });
 
-    return chatCompletion.choices[0]?.message?.content || "No response.";
+    // Handling the streaming response
+    let responseText = "";
+    for await (const chunk of chatCompletion) {
+      responseText += chunk.choices[0]?.delta?.content || "";
+    }
+    return responseText;
   } catch (error) {
-    console.error("Groq API Error:", error.message);
+    console.error("Error generating response from Groq:", error.message);
     return "Sorry, I couldn’t process your request.";
   }
 }
