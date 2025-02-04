@@ -1,54 +1,34 @@
 const express = require("express");
-const socket = require("socket.io");
 const { Groq } = require("groq-sdk");
-const app = express();
 const cors = require("cors");
-// Serve static files from the "public" folder
+const { Server } = require("socket.io");
+
+const app = express();
 app.use(express.static("public"));
-const corsOptions = {
-  origin: "*", // Allow only requests from this origin
-  methods: "GET,POST", // Allow only these methods
-  allowedHeaders: ["Content-Type", "Authorization"], // Allow only these headers
-};
 
-// Start the server
-const server = app.listen(4000, () => {
-  console.log("Server running on http://localhost:4000");
+// CORS Configuration
+app.use(cors({ origin: "*", methods: ["GET", "POST"], credentials: true }));
+
+// Start Server
+const server = app.listen(5000, () => {
+  console.log("Server running on http://localhost:5000");
 });
-
-// Use CORS middleware with specified options
-app.use(cors(corsOptions));
 
 // Initialize Socket.io
-const io = socket(server, {
-  cors: {
-    origin: "http://localhost:3000", // Allow your frontend origin
-    methods: ["GET", "POST"], // Allowed methods
-    credentials: true, // Allow credentials (e.g., cookies)
-  },
+const io = new Server(server, {
+  cors: { origin: "*", methods: ["GET", "POST"], credentials: true },
 });
-// Ensure this library is installed and valid
 
-// Serve static files from "public" directory
-app.use(express.static("public"));
-app.use(express.json());
-// For parsing JSON bodies
-
-// Initialize Groq client
+// Initialize Groq API
 const groq = new Groq({
-  apiKey: "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",
+  apiKey: "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", // Use environment variable
 });
 
-// Function to handle generating chat responses
-async function generateChatResponse(prompt) {
+// Function to handle AI chat response (Streaming)
+async function generateChatResponse(prompt, socket) {
   try {
     const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "user",
-          content: `${prompt} "Remember this you are an assitant Answer each question max 50 words if small answer is applicable than answer in less"`,
-        },
-      ],
+      messages: [{ role: "user", content: `${prompt}` }],
       model: "llama-3.3-70b-versatile",
       temperature: 1,
       max_completion_tokens: 100,
@@ -57,39 +37,31 @@ async function generateChatResponse(prompt) {
       stop: null,
     });
 
-    // Handling the streaming response
     let responseText = "";
     for await (const chunk of chatCompletion) {
-      responseText += chunk.choices[0]?.delta?.content || "";
+      const textChunk = chunk.choices[0]?.delta?.content || "";
+      responseText += textChunk;
+
+      // Send each chunk to the frontend
+      socket.emit("ans", textChunk);
     }
+
     return responseText;
   } catch (error) {
-    console.error("Error generating response from Groq:", error.message);
-    return "Sorry, I couldn’t process your request.";
+    console.error("Groq API Error:", error.message);
+    socket.emit("ans", "Sorry, I couldn’t process your request.");
   }
 }
 
-// WebSocket connection handler
+// WebSocket Handling
 io.on("connection", (socket) => {
-  console.log("A user connected:", socket.id);
+  console.log("Client connected");
 
-  // Listen for incoming messages from the client
-  socket.on("message", async (message) => {
-    console.log("Received message from client:", message);
-
-    try {
-      const responseText = await generateChatResponse(message);
-      socket.emit("response", responseText); // Send the response back to the frontend
-    } catch (error) {
-      console.error("Error sending response to client:", error.message);
-      socket.emit(
-        "response",
-        "An error occurred while processing your request."
-      );
-    }
+  socket.on("message", async (data) => {
+    await generateChatResponse(data.message, socket);
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+    console.log("Client disconnected");
   });
 });
