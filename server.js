@@ -29,7 +29,7 @@ async function generateChatResponse(prompt) {
       messages: [
         {
           role: "user",
-          content: `${prompt} "Remember this you are an assitant Answer each question max 50 words if small answer is applicable than answer in less"`,
+          content: `${prompt} `,
         },
       ],
       model: "llama-3.3-70b-versatile",
@@ -57,7 +57,8 @@ io.on("connection", (socket) => {
   console.log("Client connected");
 
   socket.on("message", async (data) => {
-    const response = await generateChatResponse(data.message);
+    console.log(data);
+    const response = await generateChatResponse(data);
     socket.emit("ans", response);
   });
 

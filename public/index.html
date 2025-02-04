@@ -56,13 +56,13 @@
       const pauseThreshold = 1500; // Pause duration to detect end of speech
 
       // Initialize the Socket.io client
-      socket = io("http://localhost:3000"); // Ensure the server is running on this URL
+      socket = io("http://localhost:5000"); // Ensure the server is running on this URL
 
       socket.on("connect", () => {
         console.log("Connected to the server via WebSocket!");
       });
 
-      socket.on("response", (response) => {
+      socket.on("ans", (response) => {
         console.log("Server response:", response);
 
         // Convert text to speech (TTS)
