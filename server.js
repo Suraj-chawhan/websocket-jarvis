@@ -20,7 +20,7 @@ const io = new Server(server, {
 
 // Initialize Groq API
 const groq = new Groq({
-  apiKey: "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", // Use environment variable
+  apiKey: process.env.groqKey, // Use environment variable
 });
 
 async function generateChatResponse(prompt) {
